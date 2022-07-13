@@ -1,0 +1,11 @@
+{
+  "id":"$areas",
+  "version":10,
+  "title":"Areas",
+  "text":"",
+  "author":"TA",
+  //"thumbnail":"Something.png",
+  "category":false,
+  //"url":"https://forum.theotown.com/",
+  "multiplayer":true
+}

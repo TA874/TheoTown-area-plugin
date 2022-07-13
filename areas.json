@@ -1,0 +1,20 @@
+[
+	{
+		"id":"$areas00",
+		"type":"tool",
+		"title":"Areas",
+		"frame":{"bmp":"areas0.png"},
+		"script":".areas.lua",
+		"strict lua":true
+	},
+	{
+		"id":"$areas01",
+		"type":"animation",
+		"frame":{
+			"bmp":"areas.png",
+			"w":32,
+			"handle y":8,
+			"count":8
+		}
+	}
+]

@@ -113,6 +113,7 @@ local function saveAreas()
 	for i,area in ipairs(CityAreas) do areas0[i]=Runtime.toJson(area) end
 end
 local function deleteArea(area)
+	if type(area)~="table" then return end
 	local str=tostring
 	for i,area0 in pairs(CityAreas) do if str(area0)==str(area) then table.remove(CityAreas,i) break end end
 	area,c,xx,yy=nil,0,nil,nil
@@ -121,19 +122,15 @@ local registerToolAction
 local function newArea()
 	c,xx,yy=0
 	if type(editArea)=="table" then editArea.new=nil end
+	local rdm=math.random
 	editArea={
 		ordinal=#CityAreas+1,
 		name="",
 		textSize="BIG",
 		textColor={r=255,g=255,b=255},
-		color={
-			r=math.random(0,255),
-			g=math.random(0,255),
-			b=math.random(0,255),
-		},
+		color={r=rdm(0,255),g=rdm(0,255),b=rdm(0,255)},
 		coverage={},
-		new=true,
-		new2=true
+		new=true,new2=true
 	}
 	local r=City.getRotation()
 	local w,h=City.getWidth()-1,City.getHeight()-1
@@ -146,47 +143,32 @@ local function newArea()
 	mode=0
 end
 local function openAreaEditDialog(area)
-	local oldName=area.name
-	local name=oldName
-	local oldFont=area.textSize
-	local font=oldFont
-	local oc=copyTable(area.color)
-	local nc=copyTable(area.color)
-	local otc=copyTable(area.textColor)
-	local ntc=copyTable(area.textColor)
+	if type(area)~="table" then return end
+	local oldName=area.name local name=oldName
+	local oldFont=area.textSize local font=oldFont
+	local oc=copyTable(area.color) local nc=copyTable(oc)
+	local otc=copyTable(area.textColor) local ntc=copyTable(otc)
 	local openColorDialog
-	do local gi=0 openColorDialog=function()
-		local dialog=GUI.createDialog {
-			pause=false,
-			w=180,h=166,
-		}
+	do local tab=0 openColorDialog=function()
+		local dialog=GUI.createDialog {w=180,h=166}
 		dialog.content:addLayout {
 			vertical=true,
 			onInit=function(self)
-				self:addLayout {
-					h=30,y=32,
-					onInit=function(self)
-						for i,k in pairs{"Area","Text"} do
-							local b b=self:addButton {
-								w=(self:getW()/2),
-								text=k,
-								isPressed=function() return (b:getTouchPoint() and true) or math.floor(gi+0.5)==i-1 end,
-								onClick=function() gi=i-1 end
-							}
-						end
-					end
-				}
-				self:addCanvas {
-					h=30,
-					onDraw=function(self,x,y,w,h)
-						local r,g,b=Drawing.getColor()
-						Drawing.setColor((ntc.r*gi)+(nc.r*(1-gi)),(ntc.g*gi)+(nc.g*(1-gi)),(ntc.b*gi)+(nc.b*(1-gi)))
-						Drawing.drawRect(x,y,w,h)
-						Drawing.setColor(0,0,0)
-						drawOutline(x,y,w,h)
-						Drawing.setColor(r,g,b)
-					end
-				}
+				local tabs=self:addLayout {h=30,y=32}
+				for i,k in pairs{"Area","Text"} do local b b=tabs:addButton {
+					w=(tabs:getW()/2),
+					text=k,
+					isPressed=function() return (b:getTouchPoint() and true) or math.floor(tab+0.5)==i-1 end,
+					onClick=function() tab=i-1 end
+				} end
+				self:addCanvas {h=30,onDraw=function(self,x,y,w,h)
+					local r,g,b=Drawing.getColor()
+					Drawing.setColor((ntc.r*tab)+(nc.r*(1-tab)),(ntc.g*tab)+(nc.g*(1-tab)),(ntc.b*tab)+(nc.b*(1-tab)))
+					Drawing.drawRect(x,y,w,h)
+					Drawing.setColor(0,0,0)
+					drawOutline(x,y,w,h)
+					Drawing.setColor(r,g,b)
+				end}
 				for i,k in pairs{"r","g","b"} do
 					self:addCanvas {h=20}
 					:addLabel {w=10,text=k:upper(),onUpdate=function(self)
@@ -198,11 +180,11 @@ local function openAreaEditDialog(area)
 						x=10,
 						minValue=0,
 						maxValue=255,
-						getText=function() return math.floor((ntc[k]*gi)+(nc[k]*(1-gi))) end,
-						getValue=function() return (ntc[k]*gi)+(nc[k]*(1-gi)) end,
+						getText=function() return math.floor((ntc[k]*tab)+(nc[k]*(1-tab))) end,
+						getValue=function() return (ntc[k]*tab)+(nc[k]*(1-tab)) end,
 						setValue=function(cc)
-							if gi<0.5 then nc[k]=cc end
-							if gi>=0.5 then ntc[k]=cc end
+							if tab<0.5 then nc[k]=cc end
+							if tab>=0.5 then ntc[k]=cc end
 						end,
 					}
 				end
@@ -213,28 +195,18 @@ local function openAreaEditDialog(area)
 	local dialog=GUI.createDialog {
 		title="Edit area",
 		w=230,h=130,
-		pause=false,
 		actions={icon=Icon.CANCEL,text="Cancel"}
 	}
-	dialog.content:addTextField {
-		h=30,
-		text=oldName,
-		onUpdate=function(self) name=self:getText() end
-	}
-	dialog.content:addLayout {
-		h=30,y=32,
-		onInit=function(self)
-			for _,k in pairs{"SMALL","DEFAULT","BIG"} do
-				local b b=self:addButton {
-					w=20,h=20,
-					text="A",
-					isPressed=function() return (b:getTouchPoint() or font==k) and true end,
-					onClick=function() font=k end,
-					onInit=function(self) self:setFont(Font[k]) end,
-				}
-			end
-		end
-	}
+	dialog.content:addTextField{h=30,onUpdate=function(self) name=self:getText() end}
+	:setText(oldName)
+	local fontSelection=dialog.content:addLayout{h=20,y=32}
+	for _,f in pairs{"SMALL","DEFAULT","BIG"} do local b b=fontSelection:addButton {
+		w=20,h=20,
+		text="A",
+		isPressed=function() return (b:getTouchPoint() or font==f) and true end,
+		onClick=function() font=f end,
+		onInit=function(self) self:setFont(Font[f]) end,
+	} end
 	dialog.controls:addCanvas {
 		w=30,
 		onClick=function() playClickSound() openColorDialog() end,
@@ -300,6 +272,7 @@ local function openAreaEditDialog(area)
 	return dialog
 end
 local function openPropertiesDialog(area)
+	if type(area)~="table" then return end
 	local dialog=GUI.createDialog {title=area.name}
 	local text="Buildings: "
 	local buildings={}
@@ -335,7 +308,7 @@ local function openPropertiesDialog(area)
 		end
 		text=text.."\n"
 	end
-	dialog.content:addTextFrame {text=text}
+	dialog.content:addTextFrame {w=230,text=text}
 	return dialog
 end
 local function addToolbar()
@@ -522,19 +495,18 @@ function script:leaveCity()
 end
 function script:event(_,_,_,event)
 	if event==Script.EVENT_TOOL_ENTER then
+		if type(CityAreas)~="table" then loadAreas() end
 		cArIsToolOpen=true
 		addToolbar()
 		registerToolActions()
-		TheoTown.setToolFilter {}
-		lbSetToolFilter=TheoTown.setToolFilter
+		cArSetToolFilter=TheoTown.setToolFilter
+		cArSetToolFilter {mouse=true}
 	end
 	if event==Script.EVENT_TOOL_LEAVE then
 		pcall(function() cArToolbar:delete() end)
-		cArIsToolOpen=nil
-		lbSetToolFilter=nil
-		editArea=nil
-		c,xx,yy=0,nil,nil
+		cArIsToolOpen,cArSetToolFilter=nil
 		if type(editArea)=="table" then editArea.new=nil end
+		mode,c,editArea,xx,yy=-1,0
 	end
 end
 function script:drawCity()
@@ -649,14 +621,14 @@ function script:drawCity()
 	end
 end
 function script:draw(x,y)
-	if c==1 then
-		Drawing.setTile(x,y)
-		Drawing.setAlpha(1)
-		if x==xx and y==yy then Drawing.drawTileFrame(Icon.TOOLMARK+16) end
-		Drawing.setTile(x,y)
-	end 
+	if c==1 then return end
+	Drawing.setTile(x,y)
+	Drawing.setAlpha(1)
+	if x==xx and y==yy then Drawing.drawTileFrame(Icon.TOOLMARK+16) end
+	Drawing.setTile(x,y)
 end
 function script:click(x,y)
+	if type(CityAreas)~="table" then mode,c,editArea=0,-1 loadAreas() return end
 	if mode==-1 then
 		if type(editArea)=="table" then editArea.new=nil end
 		local area0
@@ -675,9 +647,9 @@ function script:click(x,y)
 	end
 	local w,h=City.getWidth()-1,City.getHeight()-1
 	c=c+1
-	if c==1 then lbSetToolFilter{land=true,water=true,building=true,road=true} xx,yy=x,y end
+	if c==1 then cArSetToolFilter{land=true,water=true,building=true,road=true,mouse=true} xx,yy=x,y end
 	if c==2 then
-		lbSetToolFilter{} c=0
+		cArSetToolFilter{mouse=true} c=0
 		c=0
 		if suc then suc(xx,yy,x,y,x,y) end
 		getRectTiles(xx,yy,x,y,function(x,y)
@@ -718,7 +690,7 @@ function script:click(x,y)
 end
 function script:overlay()
 	if type(City)~="table" then return end
-	if type(CityAreas)~="table" then return end
+	if type(CityAreas)~="table" then mode,c,editArea=-1,-1 loadAreas() end
 	local o=script:getDraft().orig
 	if type(editArea)=="table" and editArea.new2 then table.insert(CityAreas,editArea) end
 	table.sort(CityAreas,function(a,b) return a.ordinal<b.ordinal end)

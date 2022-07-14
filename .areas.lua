@@ -1,3 +1,4 @@
+pcall(function() City.rebuildUI() end)
 local function drawOutline(x,y,w,h,s,t)
 	s,t=tonumber(s) or 1,tonumber(t) or t
 	local sx2,sy2=Drawing.getScale()
@@ -94,6 +95,42 @@ local function copyTable(tbl,a,mt)
 	if mt then setmetatable(tbl2,getmetatable(tbl)) end
 	return tbl2
 end
+local function reverseTable(tbl,a,mt)
+	if type(tbl)~="table" then tbl={} return end
+	local tbl2={}
+	for _,v in ipairs(tbl) do table.insert(tbl2,1,v) end
+	for k,v in pairs(tbl) do if not tonumber(k) then tbl2[k]=v end end
+	if mt then setmetatable(tbl2,getmetatable(tbl)) end
+	return tbl2
+end
+local function updateAreaXY(area)
+	local coverage=area.coverage
+	if #coverage<1 then return end
+	local w,h=City.getWidth()-1,City.getHeight()-1
+	local startX,startY,endX,endY=w,h,0,0
+	for _,v in pairs(area.coverage) do
+		local x,y=tonumber(v.x),tonumber(v.y)
+		startX,startY=math.min(startX,x),math.min(startY,y)
+		endX,endY=math.max(endX,x),math.max(endY,y)
+	end
+	area.x,area.y=(startX*0.5)+(endX*0.5),(startY*0.5)+(endY*0.5)
+	for _,c in pairs(coverage) do
+		local x,y=tonumber(c.x),tonumber(c.y)
+		local dirs={}
+		local function fXY(x,y)
+			local e,v
+			local fl=math.floor
+			for _,vv in ipairs(area.coverage) do e=(fl(vv.x)==fl(x)) and (fl(vv.y)==fl(y)) if e then v=tostring(vv) break end end
+			return v
+		end
+		dirs.S=fXY(x+1,y) dirs.SE=fXY(x+1,y+1)
+		dirs.E=fXY(x,y+1) dirs.NE=fXY(x-1,y+1)
+		dirs.N=fXY(x-1,y) dirs.NW=fXY(x-1,y-1)
+		dirs.W=fXY(x,y-1) dirs.SW=fXY(x+1,y-1)
+		c.dirs=dirs
+	end
+	area.new,area.new2=nil,nil
+end
 local function loadAreas()
 	local areas={}
 	CityAreas=areas
@@ -105,6 +142,7 @@ local function loadAreas()
 		for i in pairs(a) do a2[tonumber(i)]=a[i] end
 		table.sort(a2,function(a,b) return (a.y+a.x)<(b.y+b.x) end)
 		area.coverage=a2
+		updateAreaXY(area)
 	end
 end
 local function saveAreas()
@@ -273,8 +311,8 @@ local function openAreaEditDialog(area)
 end
 local function openPropertiesDialog(area)
 	if type(area)~="table" then return end
-	local dialog=GUI.createDialog {title=area.name}
-	local text="Buildings: "
+	local dialog=GUI.createDialog {w=230,title=area.name}
+	local text=Translation.statistics_buildings..": "
 	local buildings={}
 	for _,v in pairs(area.coverage) do
 		local ts=tostring
@@ -298,17 +336,11 @@ local function openPropertiesDialog(area)
 			end
 		end
 	end
-	for _,v in pairs {
-		{"habitants",population},
-		{"workers",workers}
-	}
-	do
-		for i,vv in pairs{"Poor","Middle","Rich"} do
-			text=text.."\n"..vv.." "..v[1].." ("..("₮"):rep(i).."): "..ts(v[2][i])
-		end
-		text=text.."\n"
-	end
-	dialog.content:addTextFrame {w=230,text=text}
+	for i=1,3 do text=text.."\n"..tostring(Translation["ci_general_population"..(i-1)]):gsub("% %%1%$,d"," "..ts(population[i])) end
+	text=text.."\n"
+	for i,v in pairs{"Poor","Middle","Rich"} do text=text.."\n"..v.." workers ("..("₮"):rep(i).."): "..ts(workers[i]) end
+	text=text.."\n"
+	dialog.content:addTextFrame {text=text}
 	return dialog
 end
 local function addToolbar()
@@ -350,6 +382,29 @@ local function addToolbar()
 			h=h0,w=100,
 			onInit=function(self)
 				self:setTouchThrough(true)
+				local ti=0
+				self:addCanvas {
+					w=25,
+					onClick=function() playClickSound() if type(tbl.onClick)=="function" then tbl.onClick() end end,
+					onUpdate=function(self) self:setH(self:getPa():getH()) end,
+					onDraw=function(self,x,y,w,h,...)
+						if h<=0 then return end
+						local ip=isPressed()
+						local a=Drawing.getAlpha()
+						Drawing.setAlpha(a*(h/26))
+						Drawing.setClipping(x,y,w,h)
+						local yo,np=-1,NinePatch.BUTTON
+						if self:getTouchPoint() then ti=ti+1 else ti=0 end
+						if (ti>=2 and not ip) or (ip and ti<2) then yo,np=1,NinePatch.BUTTON_DOWN end
+						Drawing.drawNinePatch(np,x,y,w,h)
+						local icon=tonumber(tbl.icon) or 0
+						local iw,ih=Drawing.getImageSize(icon)
+						Drawing.drawImage(icon,x+(w/2)-(iw/2),yo+y+(h/2)-(ih/2))
+						if type(tbl.onDraw)=="function" then tbl.onDraw(self:getPa(),x,y+yo,w,h,...) end
+						Drawing.resetClipping()
+						Drawing.setAlpha(a)
+					end
+				}
 				self:addCanvas {
 					onUpdate=function(self) self:setH(self:getPa():getH()) end,
 					onInit=function(self)
@@ -386,27 +441,6 @@ local function addToolbar()
 						Drawing.setAlpha(a)
 					end
 				}:setTouchThrough(true)
-				self:addCanvas {
-					w=25,
-					onClick=function() playClickSound() if type(tbl.onClick)=="function" then tbl.onClick() end end,
-					onUpdate=function(self) self:setH(self:getPa():getH()) end,
-					onDraw=function(self,x,y,w,h,...)
-						if h<=0 then return end
-						local ip=isPressed()
-						local a=Drawing.getAlpha()
-						Drawing.setAlpha(a*(h/26))
-						Drawing.setClipping(x,y,w,h)
-						local yo,np=-1,NinePatch.BUTTON
-						if (self:getTouchPoint() and not ip) or (ip and not self:getTouchPoint()) then yo,np=1,NinePatch.BUTTON_DOWN end
-						Drawing.drawNinePatch(np,x,y,w,h)
-						local icon=tonumber(tbl.icon) or 0
-						local iw,ih=Drawing.getImageSize(icon)
-						Drawing.drawImage(icon,x+(w/2)-(iw/2),yo+y+(h/2)-(ih/2))
-						if type(tbl.onDraw)=="function" then tbl.onDraw(self:getPa(),x,y+yo,w,h,...) end
-						Drawing.resetClipping()
-						Drawing.setAlpha(a)
-					end
-				}
 			end,
 			onUpdate=function(self)
 				if isVisible() then h0=25 else h0=0 end
@@ -421,7 +455,7 @@ local function addToolbar()
 				local ttt=(Runtime.getTime()-tt)/ti
 				ttt=math.max(0,math.min(ttt,1))
 				self:setH((h2*(1-ttt))+(h1*ttt))
-				local w=0 for _,c in pairs(self:getObjects()) do c:setX(w) w=w+c:getW() end
+				local w=0 for _,c in pairs(reverseTable(self:getObjects())) do c:setX(w) w=w+c:getW() end
 				self:setW(w)
 			end,
 		}
@@ -514,17 +548,12 @@ function script:drawCity()
 	local r=City.getRotation()
 	local w,h=City.getWidth(),City.getHeight()
 	for _,area in ipairs(CityAreas) do
-		local function fXY(x,y)
-			local e,v
-			local fl=math.floor
-			for _,vv in ipairs(area.coverage) do e=(fl(vv.x)==fl(x)) and (fl(vv.y)==fl(y)) if e then break end end
-			return e
-		end
 		local _,_,s=City.getView()
 		Drawing.setScale(s,s)
 		local dc=area.color
 		for _,v in ipairs(area.coverage) do
 			local x,y=v.x,v.y
+			local dirs=type(v.dirs)=="table" and v.dirs or {}
 			local fl=math.floor
 			Drawing.setColor(dc.r,dc.g,dc.b)
 			Drawing.setTile(x,y)
@@ -541,32 +570,16 @@ function script:drawCity()
 			local function dl(f) Drawing.drawTileFrame(Draft.getDraft("$areas01"):getFrame(f)) end
 			local a=Drawing.getAlpha()
 			if not cArIsToolOpen then Drawing.setAlpha(a*0.3) end
-			if r==0 or r==2 then
-				local x0,y0=1,1
-				if r==2 then x0,y0=-1,-1 end
-				if fXY(x,y) and not fXY(x-x0,y) then dl(1) end
-				if fXY(x,y) and not fXY(x,y+y0) then dl(2) end
-				if fXY(x,y) and not fXY(x+x0,y) then dl(3) end
-				if fXY(x,y) and not fXY(x,y-y0) then dl(4) end
-				
-				if fXY(x,y) and fXY(x-x0,y) and fXY(x,y-y0) and not fXY(x-x0,y-y0) then dl(5) end
-				if fXY(x,y) and fXY(x-x0,y) and fXY(x,y+y0) and not fXY(x-x0,y+y0) then dl(6) end
-				if fXY(x,y) and fXY(x+x0,y) and fXY(x,y+y0) and not fXY(x+x0,y+y0) then dl(7) end
-				if fXY(x,y) and fXY(x,y-y0) and fXY(x+x0,y+y0) and not fXY(x+x0,y-y0) then dl(8) end
-			end
-			if r==1 or r==3 then
-				local x0,y0=1,1
-				if r==3 then x0,y0=-1,-1 end
-				if fXY(x,y) and not fXY(x,y-y0) then dl(1) end
-				if fXY(x,y) and not fXY(x-x0,y) then dl(2) end
-				if fXY(x,y) and not fXY(x,y+y0) then dl(3) end
-				if fXY(x,y) and not fXY(x+x0,y) then dl(4) end
-				
-				if fXY(x,y) and fXY(x+x0,y) and fXY(x,y-y0) and not fXY(x+x0,y-y0) then dl(5) end
-				if fXY(x,y) and fXY(x-x0,y) and fXY(x,y-y0) and not fXY(x-y0,y-y0) then dl(6) end
-				if fXY(x,y) and fXY(x,y+y0) and fXY(x-x0,y) and not fXY(x-x0,y+y0) then dl(7) end
-				if fXY(x,y) and fXY(x+x0,y) and fXY(x,y+y0) and not fXY(x+x0,y+y0) then dl(8) end
-			end
+			
+			if not dirs.N then dl(1+((1+(r-1))%4)) end
+			if not dirs.E then dl(1+((2+(r-1))%4)) end
+			if not dirs.S then dl(1+((3+(r-1))%4)) end
+			if not dirs.W then dl(1+((4+(r-1))%4)) end
+			
+			if dirs.N and dirs.W and not dirs.NW then dl(5+((1+(r-1))%4)) end
+			if dirs.N and dirs.E and not dirs.NE then dl(5+((2+(r-1))%4)) end
+			if dirs.S and dirs.E and not dirs.SE then dl(5+((3+(r-1))%4)) end
+			if dirs.S and dirs.W and not dirs.SW then dl(5+((4+(r-1))%4)) end
 			Drawing.setAlpha(a)
 		end
 		Drawing.setColor(255,255,255)
@@ -621,7 +634,7 @@ function script:drawCity()
 	end
 end
 function script:draw(x,y)
-	if c==1 then return end
+	if c~=1 then return end
 	Drawing.setTile(x,y)
 	Drawing.setAlpha(1)
 	if x==xx and y==yy then Drawing.drawTileFrame(Icon.TOOLMARK+16) end
@@ -669,21 +682,8 @@ function script:click(x,y)
 				if mode==2 then for _,area in pairs(CityAreas) do erase(area) end end
 			end
 		end)
-		local function updateXY(area)
-			local startX,startY,endX,endY=w,h,0,0
-			if #area.coverage>=1 then
-				for _,v in pairs(area.coverage) do
-					local x,y=tonumber(v.x),tonumber(v.y)
-					startX,startY=math.min(startX,x),math.min(startY,y)
-					endX,endY=math.max(endX,x),math.max(endY,y)
-				end
-				area.x=(startX*0.5)+(endX*0.5)
-				area.y=(startY*0.5)+(endY*0.5)
-			end
-			area.new,area.new2=nil,nil
-		end
-		if mode==0 or mode==1 then updateXY(editArea) end
-		if mode==2 then for _,area in pairs(CityAreas) do updateXY(area) end end
+		if mode==0 or mode==1 then updateAreaXY(editArea) end
+		if mode==2 then for _,area in pairs(CityAreas) do updateAreaXY(area) end end
 		if euc then euc() end
 		xx,yy=nil,nil
 	end

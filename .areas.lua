@@ -257,7 +257,7 @@ local function openAreaEditDialog(area)
 			pcall(function() Drawing.setColor(giAutoGetColor()) end)
 			if not (self:getTouchPoint() or self:isMouseOver()) then Drawing.setAlpha(a*0.7) end
 			drawOutline(x,y,w,h)
-			if self:isTouchPointInFocus() then
+			if self:getTouchPoint() then
 				Drawing.setAlpha(a*0.3)
 				Drawing.drawRect(x,y,w,h)
 				Drawing.setAlpha(a)
@@ -466,13 +466,13 @@ local function registerToolActions()
 	registerToolAction {
 		icon=Icon.PLUS,
 		name="New area",
-		onClick=function(...) newArea() end,
+		onClick=function() newArea() end,
 	}
 	registerToolAction {
 		icon=Icon.EDIT,
 		name="Edit area",
 		isVisible=function() return type(editArea)=="table" and true end,
-		onClick=function(...) openAreaEditDialog(editArea) end,
+		onClick=function() openAreaEditDialog(editArea) end,
 	}
 	registerToolAction {
 		icon=Icon.ABOUT,
@@ -534,7 +534,7 @@ function script:event(_,_,_,event)
 		addToolbar()
 		registerToolActions()
 		cArSetToolFilter=TheoTown.setToolFilter
-		cArSetToolFilter {mouse=true}
+		cArSetToolFilter{mouse=true}
 	end
 	if event==Script.EVENT_TOOL_LEAVE then
 		pcall(function() cArToolbar:delete() end)
@@ -638,7 +638,6 @@ function script:draw(x,y)
 	Drawing.setTile(x,y)
 	Drawing.setAlpha(1)
 	if x==xx and y==yy then Drawing.drawTileFrame(Icon.TOOLMARK+16) end
-	Drawing.setTile(x,y)
 end
 function script:click(x,y)
 	if type(CityAreas)~="table" then mode,c,editArea=0,-1 loadAreas() return end

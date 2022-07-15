@@ -1,4 +1,3 @@
-pcall(function() City.rebuildUI() end)
 local function drawOutline(x,y,w,h,s,t)
 	s,t=tonumber(s) or 1,tonumber(t) or t
 	local sx2,sy2=Drawing.getScale()
@@ -144,6 +143,15 @@ local function loadAreas()
 		area.coverage=a2
 		updateAreaXY(area)
 	end
+	editArea=nil
+	table.sort(areas,function(a,b) return a.ordinal<b.ordinal end)
+	local i
+	while next(areas,i) do
+		i=(tonumber(i) or 0)+1
+		local area=areas[i]
+		if #area.coverage==0 then table.remove(CityAreas,i) i=i-1 if i==0 then i=nil end end
+		area.ordinal=i
+	end
 end
 local function saveAreas()
 	local areas0=Util.optStorage(City.getStorage(),script:getDraft():getId())
@@ -186,9 +194,9 @@ local function openAreaEditDialog(area)
 	local oldFont=area.textSize local font=oldFont
 	local oc=copyTable(area.color) local nc=copyTable(oc)
 	local otc=copyTable(area.textColor) local ntc=copyTable(otc)
-	local openColorDialog
+	local openColorDialog,tf
 	do local tab=0 openColorDialog=function()
-		local dialog=GUI.createDialog {w=180,h=166}
+		local dialog=GUI.createDialog {w=180,h=166,onClose=function() tf:setVisible(true) end}
 		dialog.content:addLayout {
 			vertical=true,
 			onInit=function(self)
@@ -228,6 +236,11 @@ local function openAreaEditDialog(area)
 				end
 			end
 		}
+		do
+			local gi
+			pcall(function() gi=giIsEnabled() end)
+			if not gi then Runtime.postpone(function() tf:setVisible(false) end) end
+		end
 		return dialog
 	end end
 	local dialog=GUI.createDialog {
@@ -235,8 +248,8 @@ local function openAreaEditDialog(area)
 		w=230,h=130,
 		actions={icon=Icon.CANCEL,text="Cancel"}
 	}
-	dialog.content:addTextField{h=30,onUpdate=function(self) name=self:getText() end}
-	:setText(oldName)
+	tf=dialog.content:addTextField{h=30,onUpdate=function(self) name=self:getText() end}
+	tf:setText(oldName)
 	local fontSelection=dialog.content:addLayout{h=20,y=32}
 	for _,f in pairs{"SMALL","DEFAULT","BIG"} do local b b=fontSelection:addButton {
 		w=20,h=20,
@@ -257,7 +270,7 @@ local function openAreaEditDialog(area)
 			pcall(function() Drawing.setColor(giAutoGetColor()) end)
 			if not (self:getTouchPoint() or self:isMouseOver()) then Drawing.setAlpha(a*0.7) end
 			drawOutline(x,y,w,h)
-			if self:getTouchPoint() then
+			if self:isTouchPointInFocus() then
 				Drawing.setAlpha(a*0.3)
 				Drawing.drawRect(x,y,w,h)
 				Drawing.setAlpha(a)
@@ -348,25 +361,30 @@ local function addToolbar()
 	cArToolbar=GUI.getRoot():addCanvas {
 		w=25,x=-25,y=30,
 		onInit=function(self)
-			local ss=GUI.get("sidebarLine")
-			if ss:getAX()+ss:getW()>=self:getAX() then self:setX(self:getX()-ss:getW()) end
-			local mm=GUI.get("cmdMinimap")
-			if mm:getAX()+mm:getW()>=self:getAX() then self:setH(self:getH()-mm:getH()) end
+			local x,h=self:getX(),self:getH()
+			local function update()
+				local ss=GUI.get("sidebarLine")
+				if type(ss)=="table" then if ss:getAX()+ss:getW()>=self:getAX() then self:setX(x-ss:getW()) end end
+				local mm=GUI.get("cmdMinimap")
+				if type(mm)=="table" then if mm:getAX()+mm:getW()>=self:getAX() then self:setH(h-mm:getH()) end end
+			end
+			update()
+			Runtime.postpone(function() update() end)
 		end,
 		onUpdate=function(self)
 			for ii=0,2 do
 				local w,ww,h=0,0,0 for i,c in pairs(self:getObjects()) do
-				w=math.max(w,c:getW())
-				c:setX(self:getW()-c:getW()-ww)
-				c:setY(h)
-				h=h+c:getH()
-				if h>self:getH()-c:getH() then ww=ww+w w,h=0,0 end
-			end
+					w=math.max(w,c:getW())
+					c:setX(self:getW()-c:getW()-ww)
+					c:setY(h)
+					h=h+c:getH()
+					if h>self:getH()-c:getH() then ww=ww+w w,h=0,0 end
+				end
 				self:setW(w+ww)
 			end
 			self:setX(self:getPa():getCW()-self:getW())
 			local ss=GUI.get("sidebarLine")
-			if ss:getAX()+ss:getW()>=self:getAX() then self:setX(self:getX()-ss:getW()) end
+			if type(ss)=="table" then if ss:getAX()+ss:getW()>=self:getAX() then self:setX(self:getX()-ss:getW()) end end
 			if not cArIsToolOpen then self:delete() end
 		end,
 		onDraw=function(self,x,y,w,h) drawOutline(x,y,w,h,0.1) end
@@ -382,7 +400,6 @@ local function addToolbar()
 			h=h0,w=100,
 			onInit=function(self)
 				self:setTouchThrough(true)
-				local ti=0
 				self:addCanvas {
 					w=25,
 					onClick=function() playClickSound() if type(tbl.onClick)=="function" then tbl.onClick() end end,
@@ -394,8 +411,8 @@ local function addToolbar()
 						Drawing.setAlpha(a*(h/26))
 						Drawing.setClipping(x,y,w,h)
 						local yo,np=-1,NinePatch.BUTTON
-						if self:getTouchPoint() then ti=ti+1 else ti=0 end
-						if (ti>=2 and not ip) or (ip and ti<2) then yo,np=1,NinePatch.BUTTON_DOWN end
+						local gtp=self:getTouchPoint()
+						if (gtp and not ip) or (ip and not gtp) then yo,np=1,NinePatch.BUTTON_DOWN end
 						Drawing.drawNinePatch(np,x,y,w,h)
 						local icon=tonumber(tbl.icon) or 0
 						local iw,ih=Drawing.getImageSize(icon)
@@ -633,11 +650,31 @@ function script:drawCity()
 		end
 	end
 end
-function script:draw(x,y)
+function script:draw(x,y,x0,y0)
 	if c~=1 then return end
-	Drawing.setTile(x,y)
-	Drawing.setAlpha(1)
-	if x==xx and y==yy then Drawing.drawTileFrame(Icon.TOOLMARK+16) end
+	local pl=Runtime.getPlatform()
+	if pl~="desktop" then
+		local r=City.getRotation()
+		local w,h=City.getWidth()-1,City.getHeight()-1
+		x0,y0=City.getView()
+		if r==1 or r==2 then y0=h-y0 end
+		if r==3 or r==2 then x0=w-x0 end
+		if r==1 or r==3 then x0,y0=y0,x0 end
+	end
+	if (x>=xx and y>=yy and x<=x0+0.5 and y<=y0+0.5)
+	or (x>=xx and y<=yy and x<=x0+0.5 and y>=y0-0.5)
+	or (x<=xx and y>=yy and x>=x0-0.5 and y<=y0+0.5)
+	or (x<=xx and y<=yy and x>=x0-0.5 and y>=y0-0.5) then
+		local fl=math.floor
+		if (pl~="android") or (fl(x)==fl(x0+0.5) and fl(y)==fl(y0+0.5)) then
+			local a=Drawing.getAlpha()
+			if (fl(x)~=fl(x0+0.5) or fl(y)~=fl(y0+0.5)) then Drawing.setAlpha (a*0.3) end
+			Drawing.setTile(x,y)
+			Drawing.drawTileFrame(Icon.TOOLMARK+17)
+			Drawing.setAlpha(a)
+		end
+	end
+	if x==xx and y==yy then Drawing.setTile(x,y) Drawing.drawTileFrame(Icon.TOOLMARK+16) end
 end
 function script:click(x,y)
 	if type(CityAreas)~="table" then mode,c,editArea=0,-1 loadAreas() return end

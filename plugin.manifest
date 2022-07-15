@@ -7,5 +7,6 @@
   //"thumbnail":"Something.png",
   "category":false,
   //"url":"https://forum.theotown.com/",
-  "multiplayer":true
+  "multiplayer":true,
+  "once":true
 }

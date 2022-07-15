@@ -651,30 +651,31 @@ function script:drawCity()
 	end
 end
 function script:draw(x,y,x0,y0)
-	if c~=1 then return end
 	local pl=Runtime.getPlatform()
-	if pl~="desktop" then
-		local r=City.getRotation()
-		local w,h=City.getWidth()-1,City.getHeight()-1
-		x0,y0=City.getView()
-		if r==1 or r==2 then y0=h-y0 end
-		if r==3 or r==2 then x0=w-x0 end
-		if r==1 or r==3 then x0,y0=y0,x0 end
-	end
-	if (x>=xx and y>=yy and x<=x0+0.5 and y<=y0+0.5)
-	or (x>=xx and y<=yy and x<=x0+0.5 and y>=y0-0.5)
-	or (x<=xx and y>=yy and x>=x0-0.5 and y<=y0+0.5)
-	or (x<=xx and y<=yy and x>=x0-0.5 and y>=y0-0.5) then
-		local fl=math.floor
-		if (pl~="android") or (fl(x)==fl(x0+0.5) and fl(y)==fl(y0+0.5)) then
-			local a=Drawing.getAlpha()
-			if (fl(x)~=fl(x0+0.5) or fl(y)~=fl(y0+0.5)) then Drawing.setAlpha (a*0.3) end
-			Drawing.setTile(x,y)
-			Drawing.drawTileFrame(Icon.TOOLMARK+17)
-			Drawing.setAlpha(a)
+	if c==1 then
+		if pl~="desktop" then
+			local r=City.getRotation()
+			local w,h=City.getWidth()-1,City.getHeight()-1
+			x0,y0=City.getView()
+			if r==1 or r==2 then y0=h-y0 end
+			if r==3 or r==2 then x0=w-x0 end
+			if r==1 or r==3 then x0,y0=y0,x0 end
 		end
-	end
-	if x==xx and y==yy then Drawing.setTile(x,y) Drawing.drawTileFrame(Icon.TOOLMARK+16) end
+		if (x>=xx and y>=yy and x<=x0+0.5 and y<=y0+0.5)
+		or (x>=xx and y<=yy and x<=x0+0.5 and y>=y0-0.5)
+		or (x<=xx and y>=yy and x>=x0-0.5 and y<=y0+0.5)
+		or (x<=xx and y<=yy and x>=x0-0.5 and y>=y0-0.5) then
+			local fl=math.floor
+			if (pl~="android") or (fl(x)==fl(x0+0.5) and fl(y)==fl(y0+0.5)) then
+				local a=Drawing.getAlpha()
+				if (fl(x)~=fl(x0+0.5) or fl(y)~=fl(y0+0.5)) then Drawing.setAlpha (a*0.3) end
+				Drawing.setTile(x,y)
+				Drawing.drawTileFrame(Icon.TOOLMARK+17)
+				Drawing.setAlpha(a)
+			end
+		end
+		if x==xx and y==yy then Drawing.setTile(x,y) Drawing.drawTileFrame(Icon.TOOLMARK+16) end
+	elseif pl=="desktop" and x==x0 and y==y0 then Drawing.setTile(x,y) Drawing.drawTileFrame(Icon.TOOLMARK+16) end
 end
 function script:click(x,y)
 	if type(CityAreas)~="table" then mode,c,editArea=0,-1 loadAreas() return end

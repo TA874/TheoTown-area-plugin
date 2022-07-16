@@ -5,7 +5,8 @@
 		"title":"Areas",
 		"frame":{"bmp":"areas.png"},
 		"script":".areas.lua",
-		"strict lua":true
+		"strict lua":true,
+		"once":true
 	},
 	{
 		"id":"$areas01",
@@ -15,6 +16,7 @@
 			"w":32,
 			"handle y":8,
 			"count":8
-		}
+		},
+		"once":true
 	}
 ]

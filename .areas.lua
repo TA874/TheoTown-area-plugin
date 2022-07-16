@@ -103,6 +103,7 @@ local function reverseTable(tbl,a,mt)
 	return tbl2
 end
 local function updateAreaXY(area)
+	if type(area)~="table" then return end
 	local coverage=area.coverage
 	if #coverage<1 then return end
 	local w,h=City.getWidth()-1,City.getHeight()-1
@@ -153,16 +154,45 @@ local function loadAreas()
 		area.ordinal=i
 	end
 end
-local function saveAreas()
-	local areas0=Util.optStorage(City.getStorage(),script:getDraft():getId())
-	while next(areas0) do table.remove(areas0) end
-	for i,area in ipairs(CityAreas) do areas0[i]=Runtime.toJson(area) end
-end
+local function saveAreas() Runtime.postpone(function()
+	local er0,er1=pcall(function()
+		if type(CityAreas)~="table" then mode,c,editArea=-1,-1 loadAreas() end
+		if type(editArea)=="table" and editArea.new2 then table.insert(CityAreas,editArea) end
+		table.sort(CityAreas,function(a,b) return a.ordinal<b.ordinal end)
+		local i,e
+		while next(CityAreas,i) do
+			i=(tonumber(i) or 0)+1
+			local area=CityAreas[i]
+			area.new=area.new and cArIsToolOpen
+			if not area.new then area.new=nil end
+			if #area.coverage==0 and not area.new then table.remove(CityAreas,i) i=i-1 if i==0 then i=nil end break end
+			area.ordinal=i
+			if not e then e=tostring(area)==tostring(editArea) end
+		end
+		if type(editArea)=="table" then
+			if #editArea.coverage==0 and mode==1 then mode=-1 end
+			if mode==-1 then c=0 end
+			if editArea.new2 then
+				editArea.name="Area "..(#CityAreas)
+				editArea.ordinal=#CityAreas
+				editArea.new2=nil
+			elseif not e then editArea=nil end
+		elseif mode~=2 then mode=-1 end
+	end)
+	local er2,er3=pcall(function()
+		local areas0=Util.optStorage(City.getStorage(),script:getDraft():getId())
+		while next(areas0) do table.remove(areas0) end
+		for i,area in ipairs(CityAreas) do areas0[i]=Runtime.toJson(area) end
+	end)
+	local ts=tostring
+	assert(er0 and er2,table.concat({ts(er1 or er1==nil and ""),ts(er3 or er3==nil and "")},"; "))
+end) end
 local function deleteArea(area)
 	if type(area)~="table" then return end
 	local str=tostring
 	for i,area0 in pairs(CityAreas) do if str(area0)==str(area) then table.remove(CityAreas,i) break end end
 	area,c,xx,yy=nil,0,nil,nil
+	saveAreas()
 end
 local registerToolAction
 local function newArea()
@@ -187,6 +217,7 @@ local function newArea()
 	editArea.x=math.floor(math.max(0,math.min(x+0.5,w)))
 	editArea.y=math.floor(math.max(0,math.min(y+0.5,h)))
 	mode=0
+	saveAreas()
 end
 local function openAreaEditDialog(area)
 	if type(area)~="table" then return end
@@ -313,6 +344,7 @@ local function openAreaEditDialog(area)
 			area.textSize=font
 			for k,v in pairs(nc) do area.color[k]=v end
 			for k,v in pairs(ntc) do area.textColor[k]=v end
+			saveAreas()
 		end,
 		onUpdate=function(self)
 			local cm=nc.r~=oc.r or nc.g~=oc.g or nc.b~=oc.b
@@ -538,6 +570,7 @@ local function registerToolActions()
 			editArea.new=nil
 			if not (tonumber(editArea.x) and tonumber(editArea.y)) then deleteArea(editArea) end
 			c,editArea,xx,yy=0
+			saveAreas()
 		end,
 	}
 end
@@ -555,12 +588,15 @@ function script:event(_,_,_,event)
 		registerToolActions()
 		cArSetToolFilter=TheoTown.setToolFilter
 		cArSetToolFilter{mouse=true}
+		if type(City)=="table" then script:getDraft().orig.title="Areas ("..#CityAreas..")" end
 	end
 	if event==Script.EVENT_TOOL_LEAVE then
 		pcall(function() cArToolbar:delete() end)
 		cArIsToolOpen,cArSetToolFilter=nil
 		if type(editArea)=="table" then editArea.new=nil end
 		mode,c,editArea,xx,yy=-1,0
+		script:getDraft().orig.title="Areas"
+		if type(City)=="table" then saveAreas() end
 	end
 end
 function script:drawCity()
@@ -709,6 +745,7 @@ function script:click(x,y)
 		if tostring(editArea)==tostring(area0) then editArea=nil else editArea=area0 end
 		return
 	end
+	if type(editArea)~="table" then mode=-1 end
 	local w,h=City.getWidth()-1,City.getHeight()-1
 	c=c+1
 	if c==1 then cArSetToolFilter{land=true,water=true,building=true,road=true,mouse=true} xx,yy=x,y end
@@ -737,34 +774,13 @@ function script:click(x,y)
 		if mode==2 then for _,area in pairs(CityAreas) do updateAreaXY(area) end end
 		if euc then euc() end
 		xx,yy=nil,nil
+		saveAreas()
 	end
 end
 function script:overlay()
-	if type(City)~="table" then return end
-	if type(CityAreas)~="table" then mode,c,editArea=-1,-1 loadAreas() end
 	local o=script:getDraft().orig
-	if type(editArea)=="table" and editArea.new2 then table.insert(CityAreas,editArea) end
-	table.sort(CityAreas,function(a,b) return a.ordinal<b.ordinal end)
-	local i,e
-	while next(CityAreas,i) do
-		i=(tonumber(i) or 0)+1
-		local area=CityAreas[i]
-		area.new=area.new and cArIsToolOpen
-		if not area.new then area.new=nil end
-		if #area.coverage==0 and not area.new then table.remove(CityAreas,i) i=i-1 if i==0 then i=nil end break end
-		area.ordinal=i
-		if not e then e=tostring(area)==tostring(editArea) end
-	end
-	if type(editArea)=="table" then
-		if #editArea.coverage==0 and mode==1 then mode=-1 end
-		if mode==-1 then c=0 end
-		if editArea.new2 then
-			editArea.name="Area "..(#CityAreas)
-			editArea.new2=nil
-			return
-		end
-		if not e then editArea=nil end
-	else if mode~=2 then mode=-1 end end
-	if cArIsToolOpen and Runtime.getStageName()=="GameStage" then o.title="Areas ("..#CityAreas..")" else o.title="Areas" end
-	saveAreas()
+	o.title="Areas"
+	if type(CityAreas)~="table" then return end
+	if not (cArIsToolOpen and Runtime.getStageName()=="GameStage") then return end
+	o.title="Areas ("..#CityAreas..")"
 end

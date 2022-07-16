@@ -433,7 +433,6 @@ local function addToolbar()
 					onDraw=function(self,x,y,w,h)
 						if h<=0 then return end
 						local a=Drawing.getAlpha()
-						Drawing.setAlpha(a*(h/26))
 						local text=tbl.name
 						text=tostring(text or text==nil and "")
 						local tw,th=Drawing.getTextSize(text,Font.SMALL)
@@ -445,10 +444,14 @@ local function addToolbar()
 							local function draw(xx,yy) Drawing.drawText(text,xx+x,yy+y+(h/2)-(th/2),Font.SMALL) end
 							local r,g,b=Drawing.getColor()
 							Drawing.setColor(0,0,0)
+							local ii=math.min(1,h/26)
+							local aa=a*ii
+							Drawing.setAlpha(aa*(ii*ii))
 							for _,i in pairs{0.5,0.4,0.3,0.2,0.1} do
 								draw(i,0) draw(-i,0) draw(0,-i) draw(0,i)
 								draw(i,i) draw(-i,i) draw(i,-i) draw(-i,-i)
 							end
+							Drawing.setAlpha(aa)
 							Drawing.setColor(r,g,b)
 							if isPressed() then Drawing.setColor(100*(r/255),220*(g/255),200*(b/255)) end
 							draw(0,0)
@@ -566,6 +569,7 @@ function script:drawCity()
 	local w,h=City.getWidth(),City.getHeight()
 	for _,area in ipairs(CityAreas) do
 		local _,_,s=City.getView()
+		local isSelected=tostring(area)==tostring(editArea)
 		Drawing.setScale(s,s)
 		local dc=area.color
 		for _,v in ipairs(area.coverage) do
@@ -576,7 +580,7 @@ function script:drawCity()
 			Drawing.setTile(x,y)
 			if cArIsToolOpen then
 				Drawing.setAlpha(0.2)
-				if tostring(area)==tostring(editArea) then
+				if isSelected then
 					local ii=(Runtime.getTime()%2000)/1000
 					if ii>1 then ii=2-ii end
 					Drawing.setAlpha(0.6*ii)
@@ -603,7 +607,7 @@ function script:drawCity()
 		if tonumber(area.x) and tonumber(area.y) then
 			local x,y=area.x,area.y
 			Drawing.setTile(x,y)
-			if cArIsToolOpen and tostring(area)==tostring(editArea) then
+			if cArIsToolOpen and isSelected then
 				local ii=(Runtime.getTime()%2000)/1000
 				if ii>1 then ii=2-ii end
 				Drawing.setAlpha(1-ii)
@@ -619,15 +623,19 @@ function script:drawCity()
 			local r,g,b=Drawing.getColor()
 			Drawing.setColor(0,0,0)
 			local a=Drawing.getAlpha()
-			Drawing.setAlpha(a/16)
-			for _,i in pairs{1,0.9,0.8,0.7,0.6,0.5,0.4,0.3,0.2,0.1} do
+			local ai=math.max(1,((s-1)*2))
+			local aa=a/ai
+			Drawing.setAlpha(aa/ai)
+			if cArIsToolOpen then aa=1 Drawing.setAlpha(a) end
+			for _,i in pairs{1} do
 				draw(i,0) draw(-i,0) draw(0,-i) draw(0,i)
 				draw(i,i) draw(-i,i) draw(i,-i) draw(-i,-i)
 			end
+			Drawing.setAlpha(aa)
 			local tc=area.textColor
 			Drawing.setColor(tc.r,tc.g,tc.b)
-			Drawing.setAlpha(a)
 			draw(0,0)
+			Drawing.setAlpha(a)
 			if cArIsToolOpen then
 				local text=area.ordinal
 				local tw,th2=Drawing.getTextSize(text,Font.BIG)
@@ -635,6 +643,12 @@ function script:drawCity()
 				local y=-(th/2)-th2-4
 				Drawing.setAlpha(1)
 				Drawing.setColor(dc.r,dc.g,dc.b)
+				if isSelected then
+					--local r,g,b=255-((g+b)/2),255-((r+b)/2),255-((r+g)/2)
+					local r,g,b=Drawing.getColor()
+					Drawing.setColor(255,255,255)
+					if (r+g+b)/3>127.5 then Drawing.setColor(0,0,0) end
+				end
 				Drawing.drawRect(x-2,y,tw+4,th2)
 				do
 					local r,g,b=Drawing.getColor()
